@@ -1,0 +1,2 @@
+# oslostack
+OpenSecondLife OpenStack
