@@ -416,11 +416,16 @@ enable_fluentd: "no"
 
 ```shell
 mkdir -p /etc/kolla/config/glance
-mkdir -p /etc/kolla/config/cinder
-mkdir -p /etc/kolla/config/nova
 cp ceph.client.glance.keyring /etc/kolla/config/glance/
+cp ceph.conf /etc/kolla/config/glance/
+
+mkdir -p /etc/kolla/config/cinder
 cp ceph.client.cinder.keyring /etc/kolla/config/cinder/
+cp ceph.conf /etc/kolla/config/cinder/
+
+mkdir -p /etc/kolla/config/nova
 cp ceph.client.nova.keyring /etc/kolla/config/nova/
+cp ceph.conf /etc/kolla/config/nova/
 
 vim /opt/oslostack/oslostack.yml
 ```
