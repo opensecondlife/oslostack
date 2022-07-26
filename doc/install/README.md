@@ -124,7 +124,7 @@ TODO
 ### 安装发行版的基础依赖包
 
 ```shell
-dnf install -y git vim python3 tmux python3-devel libffi-devel gcc openssl-devel python3-libselinux python3-netaddr
+dnf install -y git vim python3 sshpass tmux python3-devel libffi-devel gcc openssl-devel python3-libselinux python3-netaddr
 ```
 
 > :warning: 后续操作步骤可选择在 tmux 终端中进行，避免会话丢失造成部署过程中断。
@@ -151,6 +151,14 @@ mkdir -p /opt/oslostack && cd /opt/oslostack
 git clone https://github.com/ceph/ceph-ansible.git
 git clone https://opendev.org/openstack/kolla-ansible.git
 ```
+
+### 准备容器镜像
+
+#### ceph 容器镜像
+TODO
+
+#### openstack 容器镜像
+TODO
 
 ### 准备 python 虚拟环境
 
@@ -191,11 +199,16 @@ vim /etc/hosts
 ### 修改 ansible 配置文件
 
 ```shell
+mkdir -p /etc/ansible
 vim /etc/ansible/ansible.cfg
 [defaults]
 host_key_checking=False
 pipelining=True
 forks=100
+log_path = /var/log/oslostack-ansible.log
+
+[privilege_escalation]
+become = True
 ```
 
 ### 填写 ansible inventory
@@ -252,6 +265,9 @@ control
 
 [osds:children]
 compute
+
+[grafana-server:children]
+mons
 ```
 
 ### 测试节点连通性
@@ -288,7 +304,7 @@ git clone https://github.com/ceph/ceph-ansible.git
 
 ```shell
 cd ceph-ansible
-git checkout stable-6.0
+git checkout stable-5.0
 ```
 
 ### 填写 ceph-ansible 配置
@@ -315,6 +331,9 @@ cluster_network: "192.168.4.0/24"
 monitor_interface: eth1
 
 ntp_service_enabled: false
+
+dashboard_admin_password: oslostack
+grafana_admin_password: oslostack
 
 ceph_mgr_modules:
   - status
@@ -381,7 +400,7 @@ openstack_keys:
 
 ```shell
 cd /opt/oslostack
-ansible-playbook -i ./inventory ./ceph-ansible/site-container.yml.sample -e @/opt/oslostack/oslostack.yml
+ansible-playbook -i ./inventory ./ceph-ansible/site-container.yml.sample -e @/opt/oslostack/oslostack.yml -vv
 ```
 
 ## 使用 kolla-ansible 部署 OpenStack
@@ -449,10 +468,10 @@ cinder_ssd_backend_name: "ssd"
 ### 执行部署命令
 
 ```shell
-kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml bootstrap-servers
-kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml prechecks
-kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml deploy
-kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml post-deploy
+kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml bootstrap-servers -vv
+kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml prechecks -vv
+kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml deploy -vv
+kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml post-deploy -vv
 ```
 
 ### 使用 OpenStack
