@@ -246,15 +246,19 @@ docker run -d -p 4000:5000 --restart always --name registry registry:2
 ```
 
 #### ceph 容器镜像
+```shell
 docker pull quay.io/ceph/daemon:latest-octopus
 docker tag quay.io/ceph/daemon:latest-octopus 10.0.10.11:4000/ceph/daemon:latest-octopus
 docker push 10.0.10.11:4000/ceph/daemon:latest-octopus
+```
 
 #### openstack 容器镜像
+```shell
 docker pull kolla/centos-source-nova-api:wallaby
 docker tag kolla/centos-source-nova-api:wallaby 10.0.10.11:4000/kolla/centos-source-nova-api:wallaby
 docker push 10.0.10.11:4000/kolla/centos-source-nova-api:wallaby
 ...
+```
 
 ### 准备 python 虚拟环境
 
