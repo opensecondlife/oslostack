@@ -26,7 +26,8 @@
 
 > :warning: 操作前请做好备份。
 
-对于 CentOS 8 Stream，使用以下命令替换默认的配置
+可以使用镜像源加速软件包下载速度。
+对于 CentOS 8 Stream，使用以下命令替换默认的配置。
 
 ```shell
 sudo sed -e 's|^mirrorlist=|#mirrorlist=|g' \
@@ -115,9 +116,93 @@ enabled=0
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial
 ```
 
+#### 安装 openstack 软件仓库
+
+```shell
+dnf install -y centos-release-openstack-wallaby
+```
+
 #### 网络配置
 
-TODO
+##### 安装 openvswitch
+
+```shell
+dnf install -y openvswitch
+systemctl start openvswitch && systemctl enable openvswitch
+```
+
+##### 使用 network-scripts 配置网络
+
+```shell
+# 卸载NetworkManager
+dnf remove -y NetworkManager
+
+# 配置网桥
+vim /etc/sysconfig/network-scripts/ifcfg-br-ex
+DEVICE=br-ex
+ONBOOT=yes
+HOTPLUG=no
+NM_CONTROLLED=no
+PEERDNS=no
+DEVICETYPE=ovs
+TYPE=OVSBridge
+MTU=1500
+OVS_EXTRA="set bridge br-ex fail_mode=standalone -- del-controller br-ex"
+
+# 配置bond
+vim /etc/sysconfig/network-scripts/ifcfg-bond0
+DEVICE=bond0
+ONBOOT=yes
+HOTPLUG=no
+NM_CONTROLLED=no
+PEERDNS=no
+DEVICETYPE=ovs
+TYPE=OVSPort
+OVS_BRIDGE=br-ex
+BONDING_OPTS="mode=4 miimon=100"
+MTU=1500
+
+# 配置 bond 从属网卡
+vim /etc/sysconfig/network-scripts/ifcfg-eno1
+DEVICE=eno1
+ONBOOT=yes
+HOTPLUG=no
+NM_CONTROLLED=no
+PEERDNS=no
+MASTER=bond0
+SLAVE=yes
+BOOTPROTO=none
+MTU=1500
+
+vim /etc/sysconfig/network-scripts/ifcfg-eno2
+DEVICE=eno2
+ONBOOT=yes
+HOTPLUG=no
+NM_CONTROLLED=no
+PEERDNS=no
+MASTER=bond0
+SLAVE=yes
+BOOTPROTO=none
+MTU=1500
+
+# 配置ovs子接口
+vim /etc/sysconfig/network-scripts/ifcfg-vlan100
+DEVICE=vlan100
+ONBOOT=yes
+HOTPLUG=no
+NM_CONTROLLED=no
+PEERDNS=no
+DEVICETYPE=ovs
+TYPE=OVSIntPort
+OVS_BRIDGE=br-ex
+OVS_OPTIONS="tag=100"
+MTU=1500
+BOOTPROTO=static
+IPADDR=10.0.10.11
+NETMASK=255.255.255.0
+
+systemctl restart network
+```
 
 ## 在部署节点上进行
 
@@ -318,6 +403,7 @@ vim oslostack.yml
 # ceph
 cephx: true
 containerized_deployment: true
+ceph_docker_registry: "192.168.10.34:4000"
 ceph_origin: distro
 
 osd_scenario: lvm
