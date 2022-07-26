@@ -239,11 +239,22 @@ git clone https://opendev.org/openstack/kolla-ansible.git
 
 ### 准备容器镜像
 
+#### 启动 docker registry
+```shell
+docker pull registry:2
+docker run -d -p 4000:5000 --restart always --name registry registry:2
+```
+
 #### ceph 容器镜像
-TODO
+docker pull quay.io/ceph/daemon:latest-octopus
+docker tag quay.io/ceph/daemon:latest-octopus 10.0.10.11:4000/ceph/daemon:latest-octopus
+docker push 10.0.10.11:4000/ceph/daemon:latest-octopus
 
 #### openstack 容器镜像
-TODO
+docker pull kolla/centos-source-nova-api:wallaby
+docker tag kolla/centos-source-nova-api:wallaby 10.0.10.11:4000/kolla/centos-source-nova-api:wallaby
+docker push 10.0.10.11:4000/kolla/centos-source-nova-api:wallaby
+...
 
 ### 准备 python 虚拟环境
 
@@ -361,6 +372,16 @@ mons
 ansible -i ./inventory all -m ping
 ```
 
+### 节点初始化
+```shell
+# 添加占位符
+vim /etc/kolla/globals.yml
+---
+dummy:
+
+kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml bootstrap-servers -vv
+```
+
 ## 使用 ceph-ansible 部署 ceph 分布式存储
 
 本章节提供了 ceph 分布式存储的部署步骤以及相关指令的说明。
@@ -402,8 +423,9 @@ vim oslostack.yml
 ```yml
 # ceph
 cephx: true
+ceph_docker_registry: "10.0.10.11:4000"
 containerized_deployment: true
-ceph_docker_registry: "192.168.10.34:4000"
+container_binary: docker
 ceph_origin: distro
 
 osd_scenario: lvm
@@ -505,6 +527,7 @@ vim oslostack.yml
 ```
 
 ```yml
+docker_registry: "10.0.10.11:4000"
 kolla_base_distro: "centos"
 kolla_install_type: "source"
 
@@ -554,7 +577,6 @@ cinder_ssd_backend_name: "ssd"
 ### 执行部署命令
 
 ```shell
-kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml bootstrap-servers -vv
 kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml prechecks -vv
 kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml deploy -vv
 kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml post-deploy -vv
