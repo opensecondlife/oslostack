@@ -2,6 +2,9 @@
 
 本指南提供了使用 ceph-ansible 与 kolla-ansible 在裸金属服务器或虚拟机上部署 Ceph 与 OpenStack 的逐步说明。
 
+- ceph 版本：pacific
+- openstack 版本：yoga
+
 ## 交换机配置
 
 略
@@ -119,7 +122,7 @@ gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial
 #### 安装 openstack 软件仓库
 
 ```shell
-dnf install -y centos-release-openstack-wallaby
+dnf install -y centos-release-openstack-yoga
 ```
 
 #### 网络配置
@@ -131,11 +134,22 @@ dnf install -y openvswitch
 systemctl start openvswitch && systemctl enable openvswitch
 ```
 
+##### 配置 IPv4 forwarding
+
+```shell
+vi /etc/sysctl.conf
+net.ipv4.ip_forward = 1
+sysctl -p /etc/sysctl.conf
+```
+
 ##### 使用 network-scripts 配置网络
 
 ```shell
 # 卸载NetworkManager
 dnf remove -y NetworkManager
+
+# 禁用firewalld
+systemctl stop firewalld && systemctl disable firewalld
 
 # 配置网桥
 vim /etc/sysconfig/network-scripts/ifcfg-br-ex
@@ -204,6 +218,21 @@ NETMASK=255.255.255.0
 systemctl restart network
 ```
 
+##### 配置 DNS
+
+```shell
+vi /etc/resolv.conf
+nameserver 119.29.29.29
+```
+
+##### 配置时钟同步
+
+```shell
+dnf install -y chrony
+systemctl start chronyd && systemctl enable chronyd
+chronyc sources
+```
+
 ## 在部署节点上进行
 
 ### 安装发行版的基础依赖包
@@ -233,31 +262,8 @@ mkdir -p /opt/oslostack && cd /opt/oslostack
 ### 获取部署脚本
 
 ```shell
-git clone https://github.com/ceph/ceph-ansible.git
-git clone https://opendev.org/openstack/kolla-ansible.git
-```
-
-### 准备容器镜像
-
-#### 启动 docker registry
-```shell
-docker pull registry:2
-docker run -d -p 4000:5000 --restart always --name registry registry:2
-```
-
-#### ceph 容器镜像
-```shell
-docker pull quay.io/ceph/daemon:latest-octopus
-docker tag quay.io/ceph/daemon:latest-octopus 10.0.10.11:4000/ceph/daemon:latest-octopus
-docker push 10.0.10.11:4000/ceph/daemon:latest-octopus
-```
-
-#### openstack 容器镜像
-```shell
-docker pull kolla/centos-source-nova-api:wallaby
-docker tag kolla/centos-source-nova-api:wallaby 10.0.10.11:4000/kolla/centos-source-nova-api:wallaby
-docker push 10.0.10.11:4000/kolla/centos-source-nova-api:wallaby
-...
+git clone -b stable-6.0 https://github.com/ceph/ceph-ansible.git
+git clone -b stable/yoga https://opendev.org/openstack/kolla-ansible.git
 ```
 
 ### 准备 python 虚拟环境
@@ -271,14 +277,14 @@ source /opt/oslostack/venv/bin/activate
 
 ```shell
 pip install -U pip 
-pip install 'ansible<2.10'
+pip install 'ansible>=4,<6'
 ```
 
 ### 安装 kolla-ansible
 
 ```shell
 cd ./kolla-ansible
-git checkout stable/wallaby
+git checkout stable/yoga
 pip install .
 cd ..
 mkdir -p /etc/kolla
@@ -294,6 +300,12 @@ vim /etc/hosts
 192.168.10.34 oslostack01
 192.168.10.243 oslostack02
 192.168.10.107 oslostack03
+```
+
+### 安装 kolla-ansible ansible galaxy 依赖项
+
+```shell
+kolla-ansible install-deps
 ```
 
 ### 修改 ansible 配置文件
@@ -376,7 +388,38 @@ mons
 ansible -i ./inventory all -m ping
 ```
 
+### 填写 kolla-ansible 配置
+
+```shell
+cd /opt/oslostack
+vim oslostack.yml
+```
+
+```yml
+# 离线 registry
+# docker_registry: "10.0.10.11:4000"
+# docker_registry_insecure: "yes"
+kolla_base_distro: "centos"
+kolla_install_type: "source"
+
+# 根据实际情况填写
+network_interface: "vlan96"
+neutron_external_interface: "bond0"
+kolla_internal_vip_address: "10.1.0.250"
+enable_cinder: "yes"
+enable_cinder_backup: "no"
+enable_fluentd: "no"
+enable_openvswitch: "no"
+```
+
+### 生成 kolla 密码
+
+```shell
+kolla-genpwd
+```
+
 ### 节点初始化
+
 ```shell
 # 添加占位符
 vim /etc/kolla/globals.yml
@@ -384,6 +427,38 @@ vim /etc/kolla/globals.yml
 dummy:
 
 kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml bootstrap-servers -vv
+```
+
+### 准备离线 registry（可选）
+
+#### 启动 docker registry
+
+```shell
+docker pull registry:2
+docker run -d -p 4000:5000 --restart always --name registry registry:2
+```
+
+#### ceph 容器镜像
+
+非容器化部署情况下无需准备 ceph 容器镜像
+
+```shell
+docker pull quay.io/ceph/daemon:latest-pacific
+docker tag quay.io/ceph/daemon:latest-pacific 10.0.10.11:4000/ceph/daemon:latest-pacific
+docker push 10.0.10.11:4000/ceph/daemon:latest-pacific
+```
+
+#### openstack 容器镜像
+
+```shell
+# 以 nova-api 示例
+docker pull kolla/centos-source-nova-api:yoga
+docker tag kolla/centos-source-nova-api:yoga 10.0.10.11:4000/kolla/centos-source-nova-api:yoga
+docker push 10.0.10.11:4000/kolla/centos-source-nova-api:yoga
+
+# 拉取所有镜像
+kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml pull -vv
+...
 ```
 
 ## 使用 ceph-ansible 部署 ceph 分布式存储
@@ -404,7 +479,7 @@ git clone https://github.com/ceph/ceph-ansible.git
 
 - stable-4.0 支持 Ceph nautilus 版本。这个分支需要 Ansible 2.9 版本。
 
-- stable-5.0 支持 Ceph octopus 版本。这个分支需要 Ansible 2.9 版本。
+- stable-5.0 支持 Ceph pacific 版本。这个分支需要 Ansible 2.9 版本。
 
 - stable-6.0 支持 Ceph pacific 版本。这个分支需要 Ansible 2.9 版本。
 
@@ -414,7 +489,23 @@ git clone https://github.com/ceph/ceph-ansible.git
 
 ```shell
 cd ceph-ansible
-git checkout stable-5.0
+git checkout stable-6.0
+```
+
+#### 准备 ceph-ansible python 虚拟环境
+
+```shell
+deactivate
+python3 -m venv /opt/oslostack/ceph-venv
+source /opt/oslostack/ceph-venv/bin/activate
+pip install -U pip
+pip install -r ./ceph-ansible/requirements.txt
+```
+
+#### 安装 ceph-ansible ansible galaxy 依赖项
+
+```shell
+ansible-galaxy install -r requirements.yml
 ```
 
 ### 填写 ceph-ansible 配置
@@ -427,34 +518,29 @@ vim oslostack.yml
 ```yml
 # ceph
 cephx: true
-ceph_docker_registry: "10.0.10.11:4000"
-containerized_deployment: true
+# 离线 registry
+# ceph_docker_registry: "10.0.10.11:4000"
+# containerized_deployment: true
 container_binary: docker
+container_package_name: docker-ce
 ceph_origin: distro
+configure_firewall: false
 
 osd_scenario: lvm
 osd_objectstore: bluestore
 osd_auto_discovery: true
-# 显示设置 db 空间大小，单位为 bytes，默认 -1 为平分空间
+# 显式设置 db 空间大小，单位为 bytes，默认 -1 为平分空间
 block_db_size: -1
 
+# 根据实际情况填写
 public_network: "192.168.3.0/24"
-cluster_network: "192.168.4.0/24"
-monitor_interface: eth1
+cluster_network: "192.168.3.0/24"
+monitor_interface: vlan96
 
 ntp_service_enabled: false
 
 dashboard_admin_password: oslostack
 grafana_admin_password: oslostack
-
-ceph_mgr_modules:
-  - status
-  - restful
-  - balancer
-  - diskprediction_local
-  - iostat
-  - pg_autoscaler
-  - prometheus
 
 crush_rule_config: true
 crush_rule_hdd:
@@ -463,6 +549,7 @@ crush_rule_hdd:
   type: host
   default: false
   class: hdd
+# 如无 ssd 设备，请将 ssd 相关配置注释掉
 crush_rule_ssd:
   name: ssd
   root: default
@@ -484,6 +571,7 @@ openstack_nova_pool:
   application: "rbd"
   pg_autoscale_mode: "on"
   target_size_ratio: 0.1
+# 如没有 ssd 设备，注释相关配置
 openstack_cinder_ssd_pool:
   name: "ssd-volumes"
   rule_name: "{{ crush_rule_ssd.name }}"
@@ -504,84 +592,71 @@ openstack_pools:
 openstack_keys:
   - { name: client.glance, caps: { mon: "profile rbd", osd: "profile rbd"}, mode: "0600" }
   - { name: client.cinder, caps: { mon: "profile rbd", osd: "profile rbd"}, mode: "0600" }
-  - { name: client.nova, caps: { mon: "profile rbd", osd: "profile rbd"}, mode: "0600" }
-
 ```
 
 ### 执行 ceph-ansible 部署命令
 
 ```shell
-cd /opt/oslostack
-ansible-playbook -i ./inventory ./ceph-ansible/site-container.yml.sample -e @/opt/oslostack/oslostack.yml -vv
+cd /opt/oslostack/ceph-ansible
+ansible-playbook -i /opt/oslostack/inventory site.yml.sample -e @/opt/oslostack/oslostack.yml -vv
 ```
 
 ## 使用 kolla-ansible 部署 OpenStack
-
-### 生成 kolla 密码
-
-```shell
-kolla-genpwd
-```
-
-### 填写 kolla-ansible 配置
-
-```shell
-cd /opt/oslostack
-vim oslostack.yml
-```
-
-```yml
-docker_registry: "10.0.10.11:4000"
-kolla_base_distro: "centos"
-kolla_install_type: "source"
-
-# 外部网络
-network_interface: "eth0"
-neutron_external_interface: "eth1"
-kolla_internal_vip_address: "10.1.0.250"
-enable_cinder: "yes"
-enable_cinder_backup: "no"
-enable_fluentd: "no"
-```
 
 ### 填写 OpenStack 与 Ceph 对接配置
 
 ```shell
 mkdir -p /etc/kolla/config/glance
-cp ceph.client.glance.keyring /etc/kolla/config/glance/
-cp ceph.conf /etc/kolla/config/glance/
 
-mkdir -p /etc/kolla/config/cinder
-cp ceph.client.cinder.keyring /etc/kolla/config/cinder/
-cp ceph.conf /etc/kolla/config/cinder/
+cp /etc/ceph/ceph.client.glance.keyring /etc/kolla/config/glance/
+cp /etc/ceph/ceph.conf /etc/kolla/config/glance/
+
+mkdir -p /etc/kolla/config/cinder/cinder-volume
+
+vim /etc/kolla/config/cinder/cinder-volume.conf
+[DEFAULT]
+enabled_backends=hdd,ssd
+
+[hdd]
+rbd_ceph_conf = /etc/ceph/ceph.conf
+rbd_user = cinder
+backend_host = rbd:hdd_volumes
+rbd_pool = hdd-volumes
+volume_backend_name = hdd
+volume_driver = cinder.volume.drivers.rbd.RBDDriver
+rbd_secret_uuid = XXX # /etc/kolla/passwords.yml
+
+[ssd]
+rbd_ceph_conf = /etc/ceph/ceph.conf
+rbd_user = cinder
+backend_host = rbd:ssd_volumes
+rbd_pool = ssd-volumes
+volume_backend_name = ssd
+volume_driver = cinder.volume.drivers.rbd.RBDDriver
+rbd_secret_uuid = XXX
+
+cp /etc/ceph/ceph.client.cinder.keyring /etc/kolla/config/cinder/cinder-volume
+cp /etc/ceph/ceph.conf /etc/kolla/config/cinder/
 
 mkdir -p /etc/kolla/config/nova
-cp ceph.client.nova.keyring /etc/kolla/config/nova/
-cp ceph.conf /etc/kolla/config/nova/
+cp /etc/ceph/ceph.client.cinder.keyring /etc/kolla/config/nova/
+cp /etc/ceph/ceph.conf /etc/kolla/config/nova/
 
 vim /opt/oslostack/oslostack.yml
 ```
 
 ```yml
 glance_backend_ceph: "yes"
-ceph_glance_user: "glance"
-
 cinder_backend_ceph: "yes"
-ceph_cinder_user: "cinder"
-
 nova_backend_ceph: "yes"
-ceph_nova_user: "nova"
-
-cinder_hdd_backend_pool: "hdd-volumes"
-cinder_hdd_backend_name: "hdd"
-cinder_ssd_backend_pool: "ssd-volumes"
-cinder_ssd_backend_name: "ssd"
 ```
 
 ### 执行部署命令
 
 ```shell
-kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml prechecks -vv
+deactivate
+source /opt/oslostack/venv/bin/activate
+kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml prechecks -vv -e prechecks_enable_host_ntp_checks=false
 kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml deploy -vv
 kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml post-deploy -vv
 ```
@@ -591,7 +666,7 @@ kolla-ansible -i ./inventory -e @/opt/oslostack/oslostack.yml post-deploy -vv
 安装 openstack 命令行
 
 ```shell
-pip install python-openstackclient -c https://releases.openstack.org/constraints/upper/wallaby
+pip install python-openstackclient -c https://releases.openstack.org/constraints/upper/yoga
 ```
 
 加载 openstack 凭证文件
