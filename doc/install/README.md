@@ -410,6 +410,7 @@ enable_cinder: "yes"
 enable_cinder_backup: "no"
 enable_fluentd: "no"
 enable_openvswitch: "no"
+enable_heat: "no"
 ```
 
 ### 生成 kolla 密码
