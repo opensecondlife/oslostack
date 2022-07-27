@@ -658,6 +658,15 @@ cinder_backend_ceph: "yes"
 nova_backend_ceph: "yes"
 ```
 
+### 调整可用的 VLAN ID 范围
+
+```shell
+mkdir /etc/kolla/config/neutron
+vim /etc/kolla/config/neutron/ml2_conf.ini
+[ml2_type_vlan]
+network_vlan_ranges = physnet1:1:4094
+```
+
 ### 执行部署命令
 
 ```shell
@@ -692,4 +701,17 @@ openstack compute service list
 
 ```shell
 cat /etc/kolla/passwords.yml | grep keystone_admin_password | awk '{print $2}'
+```
+
+上传镜像
+
+```shell
+curl -OL https://cloud.centos.org/centos/8-stream/x86_64/images/CentOS-Stream-GenericCloud-8-20220125.1.x86_64.qcow2
+openstack image create --disk-format qcow2 --container-format bare --public --property os_type=linux --file ./CentOS-Stream-GenericCloud-8-20220125.1.x86_64.qcow2 CentOS8-Stream --progress
+```
+
+创建卷类型
+```shell
+openstack volume type create hdd --property volume_backend_name=hdd --property RESKEY:availability_zones=nova
+openstack volume type create ssd --property volume_backend_name=ssd --property RESKEY:availability_zones=nova
 ```
