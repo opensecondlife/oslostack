@@ -233,6 +233,12 @@ systemctl start chronyd && systemctl enable chronyd
 chronyc sources
 ```
 
+##### 检查并清理硬盘
+
+```shell
+dd if=/dev/zero of=/dev/sdb count=10 bs=1M
+```
+
 ## 在部署节点上进行
 
 ### 安装发行版的基础依赖包
