@@ -579,13 +579,13 @@ openstack_nova_pool:
   application: "rbd"
   pg_autoscale_mode: "on"
   target_size_ratio: 0.1
-# 如没有 ssd 设备，注释相关配置
-openstack_cinder_ssd_pool:
-  name: "ssd-volumes"
-  rule_name: "{{ crush_rule_ssd.name }}"
-  application: "rbd"
-  pg_autoscale_mode: "on"
-  target_size_ratio: 1.0
+# ssd pool
+#openstack_cinder_ssd_pool:
+#  name: "ssd-volumes"
+#  rule_name: "{{ crush_rule_ssd.name }}"
+#  application: "rbd"
+#  pg_autoscale_mode: "on"
+#  target_size_ratio: 1.0
 openstack_cinder_hdd_pool:
   name: "hdd-volumes"
   rule_name: "{{ crush_rule_hdd.name }}"
@@ -594,9 +594,9 @@ openstack_cinder_hdd_pool:
   target_size_ratio: 1.0
 openstack_pools:
   - "{{ openstack_glance_pool }}"
-  - "{{ openstack_cinder_ssd_pool }}"
   - "{{ openstack_cinder_hdd_pool }}"
   - "{{ openstack_nova_pool }}"
+#  - "{{ openstack_cinder_ssd_pool }}"
 openstack_keys:
   - { name: client.glance, caps: { mon: "profile rbd", osd: "profile rbd"}, mode: "0600" }
   - { name: client.cinder, caps: { mon: "profile rbd", osd: "profile rbd"}, mode: "0600" }
@@ -623,7 +623,9 @@ mkdir -p /etc/kolla/config/cinder/cinder-volume
 
 vim /etc/kolla/config/cinder/cinder-volume.conf
 [DEFAULT]
-enabled_backends=hdd,ssd
+enabled_backends=hdd
+#enabled_backends=hdd,ssd
+
 
 [hdd]
 rbd_ceph_conf = /etc/ceph/ceph.conf
@@ -634,14 +636,14 @@ volume_backend_name = hdd
 volume_driver = cinder.volume.drivers.rbd.RBDDriver
 rbd_secret_uuid = XXX # 查看 /etc/kolla/passwords.yml 中对应的 cinder_rbd_secret_uuid
 
-[ssd]
-rbd_ceph_conf = /etc/ceph/ceph.conf
-rbd_user = cinder
-backend_host = rbd:ssd_volumes
-rbd_pool = ssd-volumes
-volume_backend_name = ssd
-volume_driver = cinder.volume.drivers.rbd.RBDDriver
-rbd_secret_uuid = XXX # 查看 /etc/kolla/passwords.yml 中对应的 cinder_rbd_secret_uuid
+#[ssd]
+#rbd_ceph_conf = /etc/ceph/ceph.conf
+#rbd_user = cinder
+#backend_host = rbd:ssd_volumes
+#rbd_pool = ssd-volumes
+#volume_backend_name = ssd
+#volume_driver = cinder.volume.drivers.rbd.RBDDriver
+#rbd_secret_uuid = XXX # 查看 /etc/kolla/passwords.yml 中对应的 cinder_rbd_secret_uuid
 
 cp /etc/ceph/ceph.client.cinder.keyring /etc/kolla/config/cinder/cinder-volume
 cp /etc/ceph/ceph.conf /etc/kolla/config/cinder/
