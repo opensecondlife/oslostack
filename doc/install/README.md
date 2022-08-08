@@ -512,6 +512,7 @@ pip install -r ./ceph-ansible/requirements.txt
 #### 安装 ceph-ansible ansible galaxy 依赖项
 
 ```shell
+cd ceph-ansible
 ansible-galaxy install -r requirements.yml
 ```
 
@@ -528,8 +529,8 @@ cephx: true
 # 离线 registry
 # ceph_docker_registry: "10.0.10.11:4000"
 # containerized_deployment: true
-container_binary: docker
-container_package_name: docker-ce
+# container_binary: docker
+# container_package_name: docker-ce
 ceph_origin: distro
 configure_firewall: false
 
