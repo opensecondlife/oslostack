@@ -557,16 +557,16 @@ crush_rule_hdd:
   type: host
   default: false
   class: hdd
-# 如无 ssd 设备，请将 ssd 相关配置注释掉
-crush_rule_ssd:
-  name: ssd
-  root: default
-  type: host
-  default: false
-  class: ssd
+# ssd crush
+#crush_rule_ssd:
+#  name: ssd
+#  root: default
+#  type: host
+#  default: false
+#  class: ssd
 crush_rules:
   - "{{ crush_rule_hdd }}"
-  - "{{ crush_rule_ssd }}"
+#  - "{{ crush_rule_ssd }}"
 
 openstack_config: true
 openstack_glance_pool:
@@ -632,7 +632,7 @@ backend_host = rbd:hdd_volumes
 rbd_pool = hdd-volumes
 volume_backend_name = hdd
 volume_driver = cinder.volume.drivers.rbd.RBDDriver
-rbd_secret_uuid = XXX # /etc/kolla/passwords.yml
+rbd_secret_uuid = XXX # 查看 /etc/kolla/passwords.yml 中对应的 cinder_rbd_secret_uuid
 
 [ssd]
 rbd_ceph_conf = /etc/ceph/ceph.conf
@@ -641,7 +641,7 @@ backend_host = rbd:ssd_volumes
 rbd_pool = ssd-volumes
 volume_backend_name = ssd
 volume_driver = cinder.volume.drivers.rbd.RBDDriver
-rbd_secret_uuid = XXX
+rbd_secret_uuid = XXX # 查看 /etc/kolla/passwords.yml 中对应的 cinder_rbd_secret_uuid
 
 cp /etc/ceph/ceph.client.cinder.keyring /etc/kolla/config/cinder/cinder-volume
 cp /etc/ceph/ceph.conf /etc/kolla/config/cinder/
@@ -702,6 +702,7 @@ openstack compute service list
 
 ```shell
 cat /etc/kolla/passwords.yml | grep keystone_admin_password | awk '{print $2}'
+
 ```
 
 上传镜像
