@@ -216,6 +216,7 @@ IPADDR=10.0.10.11
 NETMASK=255.255.255.0
 
 systemctl restart network
+systemctl enable network
 ```
 
 ##### 配置 DNS
